@@ -52,8 +52,9 @@
         }
 
         function solve() {
+            if (! $('.checkbox-container input').prop('checked')) return false // don't solve when solution is hidden
             // Only post user given values (set deduced values to 0)
-            values = $.map($('input'), function (e) {if (e.className.match(/deduced/)) return 0; else return e.value * 1})
+            values = $.map($('#board input'), function (e) {if (e.className.match(/deduced/)) return 0; else return e.value * 1})
             $.ajax({
                 url: '/solver',
                 method: 'POST',
@@ -66,7 +67,7 @@
         }
 
         function clear() {
-            $('input').each(function() {$(this).val('').data('prev', '').removeClass('deduced')})
+            $('#board input').each(function() {$(this).val('').data('prev', '').removeClass('deduced')})
             if (mobilecheck() == false) $('.row0.col0').focus()
         }
 
@@ -89,12 +90,12 @@
         var keydown = false
 
         // set cursor to beginning of input field on focus (android fix)
-        $('input').on('focus click', function() {
+        $('#board input').on('focus click', function() {
             $(this)[0].setSelectionRange(0, 0)
         })
 
         // Arrows move focus, backspace and delete clears the cell
-        $('input').on('keydown', function(e) {
+        $('#board input').on('keydown', function(e) {
             var key = e.which,
                 match = $(this).prop('class').match(/row(\d) col(\d)/),
                 row = match[1] * 1,
@@ -125,7 +126,7 @@
         })
 
         // Only allow input 1-9. Don't allow duplicates.
-        $('input').on('input', function(e) {
+        $('#board input').on('input', function(e) {
             var prev = $(this).data('prev'),
                 value = $(this).val().replace(prev, ''),
                 match = $(this).prop('class').match(/sqr(\d) row(\d) col(\d)/),
@@ -153,12 +154,25 @@
             }
         })
 
-        $('input').on('keyup', function(e) {
+        $('#board input').on('keyup', function(e) {
             keydown = false
             if ($(this).val() != $(this).data('prev')) { // when cell content has changed
                 $(this).data('prev', $(this).val())
                 solve()
             }
+        })
+
+        function remove_deduced() {
+            // removes deduced values
+            for (var row=0; row<9; row++)
+                for (var col=0; col<9; col++)
+                    if ($('.row'+row+'.col'+col).hasClass('deduced'))
+                        $('.row'+row+'.col'+col).val('').data('prev', '').removeClass('deduced')
+        }
+
+        $('.checkbox-container input').on('click', function(e) {
+            if ($(this).prop('checked')) solve()
+            else remove_deduced()
         })
 
         $('#clear').on('click', function() {
@@ -171,7 +185,7 @@
         })
 
         $('#random').on('click', function() {
-            var values = $.map($('input'), function (e) {return e.value})
+            var values = $.map($('#board input'), function (e) {return e.value})
             if (! values.includes('')) return false // sudoku is complete
             do {
                 var row = Math.floor(Math.random() * 9) // 0-8
@@ -220,7 +234,7 @@
                 1px -1px #000,
                 -1px 1px #000,
                 1px 1px #000}
-        input {
+        #board input {
             font: bold 2em/2em 'Roboto Mono', Courier, Monospace;
             width: 0.6em;
             height: 0.6em;
@@ -230,14 +244,14 @@
             border-bottom-width: 0;
             color: transparent;
             text-shadow: 0 0 #222}
-        input:focus {background-color: aliceblue !important}
-        input.deduced {text-shadow: 0 0 #800}
-        .col2, .col5 {border-right-width: 1.5px}
-        .col3, .col6 {border-left-width: 1.5px}
-        .row2, .row5 {border-bottom-width: 1.5px}
-        .row3, .row6 {border-top-width: 1.5px}
-        .col8 {border-right-width: 1px}
-        .row8 {border-bottom-width: 1px}
+        #board input:focus {background-color: aliceblue !important}
+        #board input.deduced {text-shadow: 0 0 #800}
+        #board .col2, #board .col5 {border-right-width: 1.5px}
+        #board .col3, #board .col6 {border-left-width: 1.5px}
+        #board .row2, #board .row5 {border-bottom-width: 1.5px}
+        #board .row3, #board .row6 {border-top-width: 1.5px}
+        #board .col8 {border-right-width: 1px}
+        #board .row8 {border-bottom-width: 1px}
         button {
             width: 25%;
             margin: 0 3%;
@@ -249,6 +263,48 @@
             background-color: #6c757d}
         button:hover {background-color: #800}
         a:link, a:visited, a:hover, a:active {font: inherit; color: #800}
+        .checkbox-container { /* Checkbox container */
+            position: relative;
+            padding: 0.1rem 0;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #800;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none}
+        .checkbox-container input { /* Hide the browser's default checkbox */
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0}
+        .checkmark { /* Create a custom checkbox */
+            position: absolute;
+            top: 0;
+            left: -1.5rem;
+            height: 0.9rem;
+            width: 0.9rem;
+            border: 0.05rem solid #777;
+            border-radius: 0.2rem;
+            background-color: #6c757d}
+        .checkbox-container input:checked ~ .checkmark {background-color: #800} /* When the checkbox is checked, add a red background */
+        .checkmark:after { /* Create the checkmark/indicator (hidden when not checked) */
+            content: "";
+            position: absolute;
+            display: none}
+        .checkbox-container input:checked ~ .checkmark:after {display: block} /* Show the checkmark when checked */
+        .checkbox-container .checkmark:after { /* Style the checkmark/indicator */
+            left: 0.25rem;
+            bottom: 0.1rem;
+            width: 0.3rem;
+            height: 0.7rem;
+            border: solid white;
+            border-width: 0 0.2rem 0.2rem 0;
+            -webkit-transform: rotate(45deg);
+            -ms-transform: rotate(45deg);
+            transform: rotate(45deg)}
     </style>
 </head>
 <body>
@@ -257,6 +313,7 @@
         <p style="font-size: smaller"><span style="color: #800">Red numbers</span> are deduced from the black numbers</p>
         <div id="board"></div>
         <div class="content"><button id="clear">Clear</button> <button id="default">Default</button> <button id="random">Add random</button></div>
+        <div class="content"><label class="checkbox-container">Show solution<input type="checkbox" checked="checked"><span class="checkmark"></span></label></div>
         <div class="content"><a href="https://github.com/JaakkoRoponen/sudoku-solver" target="_blank">GitHub</a></div>
     </div>
 </body>
