@@ -12,6 +12,13 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/create')
+def create():
+    sudoku = Sudoku()
+    puzzle = sudoku.create_puzzle()
+    return jsonify(puzzle.tolist())
+
+
 @app.route('/solver', methods=['POST'])
 def solver():
     puzzle = request.get_json()

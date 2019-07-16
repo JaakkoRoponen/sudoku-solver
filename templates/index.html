@@ -175,6 +175,14 @@
             else remove_deduced()
         })
 
+        $('#new').on('click', function() {
+            $.get('/create', function(initial_values) {
+                clear()
+                set_board(initial_values, true)
+                solve()
+            }, 'json')
+        })
+
         $('#clear').on('click', function() {
             clear()
         })
@@ -312,7 +320,7 @@
         <h1>Sudoku Solver</h1>
         <p style="font-size: smaller"><span style="color: #800">Red numbers</span> are deduced from the black numbers</p>
         <div id="board"></div>
-        <div class="content"><button id="clear">Clear</button> <button id="default">Default</button> <button id="random">Add random</button></div>
+        <div class="content"><button id="new">New</button> <button id="clear">Clear</button> <button id="random">Add random</button></div>
         <div class="content"><label class="checkbox-container">Show solution<input type="checkbox" checked="checked"><span class="checkmark"></span></label></div>
         <div class="content"><a href="https://github.com/JaakkoRoponen/sudoku-solver" target="_blank">GitHub</a></div>
     </div>

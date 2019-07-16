@@ -1,3 +1,5 @@
 # Sudoku Solver
-Solves Sudoku puzzles
+
+Solves and creates Sudoku puzzles
+
 https://solvesudoku.herokuapp.com/
