@@ -1,1 +1,1 @@
-web: gunicorn sudoku:app
+web: gunicorn app:app
