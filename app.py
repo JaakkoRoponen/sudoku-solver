@@ -30,6 +30,6 @@ def solver():
     sudoku = Sudoku()
     solved = sudoku.solve(puzzle)
 
-    puzzle = solved - puzzle # Gets deduced numbers
+    deduced = solved - puzzle  # remove non-deduced numbers
 
-    return jsonify(puzzle.tolist())
+    return jsonify(deduced.tolist())
