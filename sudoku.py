@@ -50,22 +50,9 @@ class Sudoku:
         if number == 0:
             return False
 
-        sqr = self._get_square(row, col)
-
-        # if number is already on the board, only set positions
-        if self.puzzle[row, col] != number:
-            # check for illegal position (number already on same row/col/sqr)
-            row_values = self.puzzle[row, :]
-            col_values = self.puzzle[:, col]
-            sqr_values = self.puzzle[sqr['top']:sqr['bottom'],
-                                     sqr['left']:sqr['right']].flatten()
-
-            if number in np.concatenate((row_values, col_values, sqr_values)):
-                return False
-
-            self.puzzle[row, col] = number
-
+        self.puzzle[row, col] = number
         number -= 1  # from sudoku board numbers (1-9) to 0-based index
+        sqr = self._get_square(row, col)
 
         # eliminate positions on same axis and square
         self.positions[number, row, :] = False
@@ -160,12 +147,22 @@ class Sudoku:
         if numbers_solved < np.count_nonzero(self.puzzle) < 9 * 9:
             self._solve()
 
-    def solve(self, puzzle):
+    def solve(self, puzzle, solve=True):
         """Solves the given Sudoku puzzle"""
         self.puzzle = np.copy(puzzle)  # preserve puzzle given in arguments
         self._init_positions()
-        self._solve()
+        if solve:
+            self._solve()
         return self.puzzle
+
+    def get_random_number(self, puzzle, row, col):
+        number = self._get_number(row, col)  # 1-9 or 0
+        if not number:
+            possible_numbers = np.where(self.positions[:, row, col])[0]
+            if possible_numbers.size == 0:  # impossible position
+                return 0
+            number = np.random.choice(possible_numbers) + 1  # 0-8 -> 1-9
+        return number
 
     def create_puzzle(self):
         """Creates a new sudoku puzzle"""
@@ -178,16 +175,18 @@ class Sudoku:
             while coords:
                 # pop random coordinate
                 row, col = coords.pop(np.random.randint(len(coords)))
-                # try setting numbers 1-9 to the coordinate in random order
-                for number in random.sample(range(1, 10), 9):
-                    if self._set_number(number, row, col):
-                        non_deduced_values.append((row, col))
-                        # start solving after setting 8 numbers
-                        if len(coords) <= 81 - 8:
-                            self._solve()
-                            # update coordinates with non-solved positions
-                            coords = list(zip(*np.where(self.puzzle == 0)))
-                        break
+                # put random number from possible numbers to the coordinate
+                possible_numbers = np.where(self.positions[:, row, col])[0]
+                if possible_numbers.size == 0:  # impossible position -> retry
+                    break
+                number = np.random.choice(possible_numbers)
+                self._set_number(number+1, row, col)
+                non_deduced_values.append((row, col))
+                # start solving after setting 8 numbers
+                if len(coords) <= 81 - 8:
+                    self._solve()
+                    # update coordinates with non-solved positions
+                    coords = list(zip(*np.where(self.puzzle == 0)))
             # try again if puzzle became unsolvable
             if np.count_nonzero(self.puzzle) == 9 * 9:
                 break

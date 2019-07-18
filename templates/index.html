@@ -54,7 +54,7 @@
         function solve() {
             if (! $('.checkbox-container input').prop('checked')) return false // don't solve when solution is hidden
             // Only post user given values (set deduced values to 0)
-            values = $.map($('#board input'), function (e) {if (e.className.match(/deduced/)) return 0; else return e.value * 1})
+            var values = $.map($('#board input'), function (e) {if (e.className.match(/deduced/)) return 0; else return e.value * 1})
             $.ajax({
                 url: '/solver',
                 method: 'POST',
@@ -193,26 +193,31 @@
         })
 
         $('#random').on('click', function() {
-            var values = $.map($('#board input'), function (e) {return e.value})
-            if (! values.includes('')) return false // sudoku is complete
+            var values = $.map($('#board input'), function (e) {return e.value * 1})
+            if (! values.includes(0)) return false // sudoku is complete
             do {
                 var row = Math.floor(Math.random() * 9) // 0-8
                 var col = Math.floor(Math.random() * 9) // 0-8
             } while ($('.row'+row+'.col'+col).val() != '')
 
-            $.fx.off = true // turn animations off
-            var numbers = [1,2,3,4,5,6,7,8,9]
-            for (var i=0; i<9; i++) {
-                var number = numbers[Math.floor(Math.random() * numbers.length)] // get random number from numbers array
-                numbers.splice(numbers.indexOf(number), 1)                       // and remove it from numbers
-                $('.row'+row+'.col'+col).val(number).trigger('input')
-                if ($('.row'+row+'.col'+col).val() != '') {
+            $.ajax({
+                url: '/random',
+                method: 'POST',
+                data: JSON.stringify({
+                    puzzle: values,
+                    row: row,
+                    col: col,
+                    solve: ! $('.checkbox-container input').prop('checked') // solve when show solution is off
+                }),
+                dataType: 'json',
+                contentType: 'application/json'
+            }).done(function(number) {
+                if (number) {
+                    $('.row'+row+'.col'+col).val(number).trigger('input')
                     solve()
                     if (mobilecheck() == false) $('.row'+row+'.col'+col).focus()
-                    break
                 }
-            }
-            $.fx.off = false // turn animations back on
+            })
         })
     })
     </script>
