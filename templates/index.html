@@ -26,7 +26,8 @@
                 else if (row <= 8 && col <= 2) sqr = 6
                 else if (row <= 8 && col <= 5) sqr = 7
                 else if (row <= 8 && col <= 8) sqr = 8
-                $('#board').append('<input type="text" autocomplete="off" class="sqr'+sqr+' row'+row+' col'+col+'">')
+                if (mobilecheck() == false) $('#board').append('<input type="text" autocomplete="off" class="sqr'+sqr+' row'+row+' col'+col+'">')
+                else $('#board').append('<input type="number" autocomplete="off" class="sqr'+sqr+' row'+row+' col'+col+'">')
             }
             $('#board').append('<br>')
         }
@@ -318,6 +319,12 @@
             -webkit-transform: rotate(45deg);
             -ms-transform: rotate(45deg);
             transform: rotate(45deg)}
+        @media screen and (max-width: 400px) {
+            html {font-size: 12px}
+        }
+        @media screen and (max-width: 300px) {
+            html {font-size: 10px}
+        }
     </style>
 </head>
 <body>
