@@ -16,8 +16,26 @@ class Sudoku:
         return {
             'top': top,
             'left': left,
-            'bottom': top + 3,
+            'bottom': top + 3,  # slicing high bound is exclusive
             'right': left + 3}
+
+    def _search_and_set_pairs(self, n, row, col):
+        """
+        Searches for naked / hidden pairs
+
+        Takes in a number (and its row/col/sqr), where the number has only two
+        possible locations. Then searches for naked pairs on higher numbers by
+        taking sum of logical_or (it should be 2).  If pairs are found, this
+        position is eliminated (set False) for all other numbers.
+        """
+        for o in range(n+1, 9):  # iterate higher numbers
+            if np.sum(np.logical_or(self.positions[n, row, col],
+                                    self.positions[o, row, col])) == 2:
+                not_n_nor_o = [i for i in range(9) if i not in [n, o]]
+                # set position false for other than n and o at row, col
+                self.positions[not_n_nor_o, row, col] *= \
+                    np.invert(self.positions[n, row, col])
+                break
 
     def _set_number(self, number, row, col):
         """
@@ -49,6 +67,7 @@ class Sudoku:
 
         number -= 1  # from sudoku board numbers (1-9) to 0-based index
 
+        # eliminate positions on same axis and square
         self.positions[number, row, :] = False
         self.positions[number, :, col] = False
         self.positions[number, sqr['top']:sqr['bottom'],
@@ -56,6 +75,48 @@ class Sudoku:
         self.positions[:, row, col] = False
         self.positions[number, row, col] = True
 
+        # eliminate naked / hidden pair positions
+        for n in range(9):  # iterate numbers
+            for x in range(9):  # iterate rows/cols/sqrs
+                top = int(x / 3) * 3  # row of top left corner of sqr
+                left = x % 3 * 3      # col of top left corner of sqr
+                if np.sum(self.positions[n, x, :]) == 2:
+                    self._search_and_set_pairs(n, x, slice(9))
+                if np.sum(self.positions[n, :, x]) == 2:
+                    self._search_and_set_pairs(n, slice(9), x)
+                sqr_sum = np.sum(self.positions[n, top:top+3, left:left+3])
+                if 2 <= sqr_sum <= 3:
+                    if sqr_sum == 2:
+                        self._search_and_set_pairs(n,
+                                                   slice(top, top+3),
+                                                   slice(left, left+3))
+                    # eliminate row/col, if in a square all possible
+                    # positions of a number are on the same row or col
+                    coords = np.where(self.positions[n,
+                                                     top:top+3,
+                                                     left:left+3])
+                    # put row coords to left column and col coords to right
+                    coords = np.transpose(coords)
+                    # check if all row or col coords are the same
+                    # (all values in the coords columns are the same
+                    # as the value on the first row)
+                    row, col = np.all(coords == coords[0, :], axis=0)
+                    if row:
+                        # eliminate positions on the same row outside of sqr
+                        outside_of_sqr = [
+                            i for i in range(9)
+                            if i not in range(left, left + 3)]
+                        self.positions[n,
+                                       top + coords[0, 0],
+                                       outside_of_sqr] = False
+                    elif col:
+                        # eliminate positions on the same col outside of sqr
+                        outside_of_sqr = [
+                            i for i in range(9)
+                            if i not in range(top, top + 3)]
+                        self.positions[n,
+                                       outside_of_sqr,
+                                       left + coords[0, 1]] = False
         return True
 
     def _init_positions(self):
@@ -69,15 +130,17 @@ class Sudoku:
         """
         Gets number at row,col position
 
-        Checks if row,col has a True value and that it's the only True value
-        on the same row / col / square. If it is, return the number, else 0.
+        Checks positions, if row,col has a True value and that it's the only
+        True value on the same row / col / square. Also checks, if only one
+        number is possible based on the board.
 
         Returns a number 1-9 or 0 (=empty)
         """
         sqr = self._get_square(row, col)
         for number in range(9):
             if self.positions[number, row, col] and \
-                (np.sum(self.positions[number, row, :]) == 1 or
+                (np.sum(self.positions[:, row, col]) == 1 or
+                 np.sum(self.positions[number, row, :]) == 1 or
                  np.sum(self.positions[number, :, col]) == 1 or
                  np.sum(self.positions[number, sqr['top']:sqr['bottom'],
                                        sqr['left']:sqr['right']]) == 1):
