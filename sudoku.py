@@ -19,23 +19,105 @@ class Sudoku:
             'bottom': top + 3,  # slicing high bound is exclusive
             'right': left + 3}
 
-    def _search_and_set_pairs(self, n, row, col):
+    def _flip_sqrs_and_rows(self):
         """
-        Searches for naked / hidden pairs
+        Moves squares to rows and rows to squares.
+        Running twice returns original state.
 
-        Takes in a number (and its row/col/sqr), where the number has only two
-        possible locations. Then searches for naked pairs on higher numbers by
-        taking sum of logical_or (it should be 2).  If pairs are found, this
-        position is eliminated (set False) for all other numbers.
+        [:,0,0:3]->[:,0,0:3], [:,1,0:3]->[:,0,3:6], [:,2,0:3]->[:,0,6:9],
+        [:,0,3:6]->[:,1,0:3], [:,1,3:6]->[:,1,3:6], [:,2,3:6]->[:,1,6:9],
+        ...
+        [:,6,6:9]->[:,8,0:3], [:,7,6:9]->[:,8,3:6], [:,8,6:9]->[:,8,6:9]
         """
-        for o in range(n+1, 9):  # iterate higher numbers
-            if np.sum(np.logical_or(self.positions[n, row, col],
-                                    self.positions[o, row, col])) == 2:
-                not_n_nor_o = [i for i in range(9) if i not in [n, o]]
-                # set position false for other than n and o at row, col
-                self.positions[not_n_nor_o, row, col] *= \
-                    np.invert(self.positions[n, row, col])
-                break
+        flipped = np.copy(self.positions)
+        for i, j in np.ndindex(3, 9):
+            flipped[:, int(j/3)+i*3, (j % 3)*3:(j % 3)*3+3] = \
+                self.positions[:, (j % 3)+i*3, int(j/3)*3:int(j/3)*3+3]
+        self.positions = flipped
+
+    def _search_locked(self, sqr, possibilities):
+        """
+        Searches locked positions
+
+        Searches for squares where all possible positions for a number
+        are on a same row or col. Positions outside the square on the same
+        row / col can be eliminated.
+        """
+        top = int(sqr / 3) * 3  # row of top left corner of sqr
+        left = sqr % 3 * 3      # col of top left corner of sqr
+
+        # numbers that have 2 or 3 possible positions in a square
+        numbers = [i for i in range(9) if 2 <= possibilities[i] <= 3]
+        for n in numbers:
+            coords = np.where(self.positions[n, top:top+3, left:left+3])
+            # put row coords to left column and col coords to right
+            coords = np.transpose(coords)
+            # check if all row or col coords are the same
+            # (all values in the coords columns are the same
+            # as the value on the first row)
+            row, col = np.all(coords == coords[0, :], axis=0)
+            if row:
+                # eliminate positions on the same row outside of sqr
+                outside_of_sqr = [i for i in range(9)
+                                  if i not in range(left, left + 3)]
+                self.positions[n, top + coords[0, 0], outside_of_sqr] = False
+            elif col:
+                # eliminate positions on the same col outside of sqr
+                outside_of_sqr = [i for i in range(9)
+                                  if i not in range(top, top + 3)]
+                self.positions[n, outside_of_sqr, left + coords[0, 1]] = False
+
+    def _search_hidden_and_naked(self, row, col):
+        """
+        Searches for naked/hidden pairs/triples/quads
+
+        Hidden:
+        If the number of possible positions for a number matches with another
+        number (on the same row/col/sqr) with the same possible positions and
+        there are e.g. only three possible positions for the three numbers, a
+        hidden triple has been found. It is important to note that not all
+        three numbers must be in all three positions, but there must not be
+        more than three positions for the three numbers all together.
+
+        Naked:
+        If the number of possible numbers in a position matches with another
+        position (on the same row/col/sqr) with the same possible numbers, and
+        there are e.g. only three possible numbers and three positions, a
+        naked triple has been found. It is important to note that not all
+        three positions must contain all three numbers, but there must not be
+        more than three numbers in the three positions all together.
+
+        Pair and quads are searched the same way, but there must be two
+        or four allowed positions/numbers for the same numbers/positions.
+
+        After finding a pair/triple/quad, other numbers in the same
+        position / positions for the same numbers, can be set False.
+
+        Finally transposes numbers and rows/cols each time to search for
+        hidden/naked alternately.
+        """
+        # how many possible positions/numbers for the given number/position
+        possibilities = np.sum(self.positions[:, row, col], axis=1)
+        # only search up to quads
+        numbers = np.array([i for i in range(9) if 2 <= possibilities[i] <= 4])
+        for n in numbers:
+            equal = np.all(  # find equal (or subset) rows/cols/sqrs
+                np.logical_xor(  # check for change after masking
+                    self.positions[numbers, row, col],
+                    self.positions[n, row, col] *
+                    self.positions[numbers, row, col]
+                ) == 0,
+                axis=1)
+            if np.sum(equal) == possibilities[n]:  # pair/triple/quad found
+                self.positions[
+                    [i for i in range(9) if i not in numbers[equal]],
+                    row, col] *= np.invert(self.positions[n, row, col])
+
+        # search for hidden/naked by transposing numbers and cols/rows
+        if isinstance(row, int):  # rows -> transpose numbers and cols
+            self.positions = np.transpose(self.positions, (2, 1, 0))
+        else:  # cols -> transpose numbers and rows
+            self.positions = np.transpose(self.positions, (1, 0, 2))
 
     def _set_number(self, number, row, col):
         """
@@ -54,7 +136,7 @@ class Sudoku:
         number -= 1  # from sudoku board numbers (1-9) to 0-based index
         sqr = self._get_square(row, col)
 
-        # eliminate positions on same axis and square
+        # eliminate positions on same axes and square
         self.positions[number, row, :] = False
         self.positions[number, :, col] = False
         self.positions[number, sqr['top']:sqr['bottom'],
@@ -62,48 +144,21 @@ class Sudoku:
         self.positions[:, row, col] = False
         self.positions[number, row, col] = True
 
-        # eliminate naked / hidden pair positions
-        for n in range(9):  # iterate numbers
-            for x in range(9):  # iterate rows/cols/sqrs
-                top = int(x / 3) * 3  # row of top left corner of sqr
-                left = x % 3 * 3      # col of top left corner of sqr
-                if np.sum(self.positions[n, x, :]) == 2:
-                    self._search_and_set_pairs(n, x, slice(9))
-                if np.sum(self.positions[n, :, x]) == 2:
-                    self._search_and_set_pairs(n, slice(9), x)
-                sqr_sum = np.sum(self.positions[n, top:top+3, left:left+3])
-                if 2 <= sqr_sum <= 3:
-                    if sqr_sum == 2:
-                        self._search_and_set_pairs(n,
-                                                   slice(top, top+3),
-                                                   slice(left, left+3))
-                    # eliminate row/col, if in a square all possible
-                    # positions of a number are on the same row or col
-                    coords = np.where(self.positions[n,
-                                                     top:top+3,
-                                                     left:left+3])
-                    # put row coords to left column and col coords to right
-                    coords = np.transpose(coords)
-                    # check if all row or col coords are the same
-                    # (all values in the coords columns are the same
-                    # as the value on the first row)
-                    row, col = np.all(coords == coords[0, :], axis=0)
-                    if row:
-                        # eliminate positions on the same row outside of sqr
-                        outside_of_sqr = [
-                            i for i in range(9)
-                            if i not in range(left, left + 3)]
-                        self.positions[n,
-                                       top + coords[0, 0],
-                                       outside_of_sqr] = False
-                    elif col:
-                        # eliminate positions on the same col outside of sqr
-                        outside_of_sqr = [
-                            i for i in range(9)
-                            if i not in range(top, top + 3)]
-                        self.positions[n,
-                                       outside_of_sqr,
-                                       left + coords[0, 1]] = False
+        # eliminate naked/hidden/locked pairs/triples/quads
+        for x in range(9):  # row / col / sqr
+            self._search_hidden_and_naked(x, slice(9))  # rows (hidden)
+            self._search_hidden_and_naked(x, slice(9))  # rows (naked)
+            self._search_hidden_and_naked(slice(9), x)  # cols (hidden)
+            self._search_hidden_and_naked(slice(9), x)  # cols (naked)
+            self._flip_sqrs_and_rows()
+            self._search_hidden_and_naked(x, slice(9))  # sqrs (hidden)
+            self._search_hidden_and_naked(x, slice(9))  # sqrs (naked)
+
+            # possible positions available for each number in a square
+            possibilities = np.sum(self.positions[:, x, :], axis=1)
+            self._flip_sqrs_and_rows()
+            self._search_locked(x, possibilities)  # sqrs (locked)
+
         return True
 
     def _init_positions(self):
@@ -156,6 +211,13 @@ class Sudoku:
         return self.puzzle
 
     def get_random_number(self, puzzle, row, col):
+        """
+        Gives "Random" number for the given row / col position
+        Returns:
+            1. the correct number (if only one)
+            2. one of the possibilities (if many)
+            3. 0 if no possible numbers
+        """
         number = self._get_number(row, col)  # 1-9 or 0
         if not number:
             possible_numbers = np.where(self.positions[:, row, col])[0]
